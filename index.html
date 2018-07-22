@@ -1,0 +1,124 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script language='javascript'>
+
+    window.onload = function(e) {
+        var bed_temp = document.getElementById('bed-temp');
+        var ext_temp = document.getElementById('ext-temp');
+        var state = document.getElementById('state');
+        var home_xy = document.getElementById('home-xy');
+        var home_z = document.getElementById('home-z');
+        var preheat_pla = document.getElementById('preheat-pla');
+        var cool_down = document.getElementById('cool-down');
+
+        var url = 'http://octopi.labs';
+        var _headers = new Headers();
+
+        _headers.append('X-Api-Key', '');
+        _headers.append("Content-Type", "application/json; charset=utf-8");
+
+        function get_state() {
+            return new Promise((resolve, reject) => {
+                fetch(`${url}/api/printer`, {'headers': _headers})
+                .then(response => response.json())
+                .then(json => resolve(json));
+            });
+        }
+
+        function home_printer(axes) {
+            return function() {
+                var body = {'command': 'home', 'axes': axes};
+                return new Promise((resolve, reject) => {
+                    fetch(`${url}/api/printer/printhead`, {'method': 'POST', 'headers': _headers, body: JSON.stringify(body)})
+                    .then(response => response.json())
+                    .then(json => resolve(json));
+                });
+            }
+        }
+        function state_to_str(state) {
+            var valid_states = filter_invalid_states(state);
+            return valid_states.join(', ');
+        }
+        function filter_invalid_states(state) {
+            /*
+            state: {…}
+            flags: Object { ready: true, cancelling: false, closedOrError: false, error: false, … }
+            text: "Operational"
+            => "ready"
+            */
+            return Object.entries(state.flags).filter((k,v) => {return k[1]}).map(item => item[0]);
+        }
+
+        function preheat(hotend, bed) {
+            return function() {
+                var body = {'command': 'target', 'targets': {'tool0': hotend}};
+                fetch(`${url}/api/printer/tool`, {'method': 'POST', 'headers': _headers, body: JSON.stringify(body)})
+                    .then(response => response.json())
+                    .then(json => resolve(json));
+
+                var body = {'command': 'target', 'target': bed};
+                fetch(`${url}/api/printer/bed`, {'method': 'POST', 'headers': _headers, body: JSON.stringify(body)})
+                    .then(response => response.json())
+                    .then(json => resolve(json));
+            }
+        }
+
+        home_xy.onclick = home_printer(['x', 'y']);
+        home_z.onclick = home_printer(['z']);
+        preheat_pla.onclick = preheat(185, 50);
+        cool_down.onclick = preheat(0, 0);
+
+        function render_state(_state) {
+            bed_temp.textContent = `Bed: ${_state.temperature.bed.actual} => ${_state.temperature.bed.target}`;
+            ext_temp.textContent = `Ext: ${_state.temperature.tool0.actual} => ${_state.temperature.tool0.target}`;
+            state.textContent = `State: ${state_to_str(_state.state)}`;
+            console.log(_state);
+        }
+
+        setInterval(function() {
+            get_state().then(_state => render_state(_state));
+        }, 5000);
+
+        get_state().then(_state => {
+            render_state(_state);
+        });
+    };
+</script>
+<style>
+label, button {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+}
+button {
+    padding: 5px;
+}
+.category-label {
+    font-weight: bold;
+}
+@media only screen and (min-width: 900px) {
+    html {
+        width: 700px;
+        margin: 0px auto 0px auto;
+    }
+}
+
+</style>
+</head>
+<body>
+    <label class='category-label'>Temperatures:</label>
+    <label id='bed-temp'></label>
+    <label id='ext-temp'></label>
+
+    <label id='state'></label>
+
+    <label class='category-label'>Home:</label>
+    <button id='home-xy'>X/Y</button>
+    <button id='home-z'>Z</button>
+
+    <label class='category-label'>Temperature:</label>
+    <button id='preheat-pla'>Pre-heat PLA</button>
+    <button id='cool-down'>Cool down</button>
+</body>
+</html>
