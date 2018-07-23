@@ -11,6 +11,10 @@
         var home_z = document.getElementById('home-z');
         var preheat_pla = document.getElementById('preheat-pla');
         var cool_down = document.getElementById('cool-down');
+        var mov_dir = document.querySelectorAll('.movement-dir');
+        var mov_length = document.querySelectorAll('.movement-length');
+
+        var movement_length = 1;
 
         var url = 'http://octopi.labs';
         var _headers = new Headers();
@@ -64,17 +68,26 @@
             }
         }
 
-        home_xy.onclick = home_printer(['x', 'y']);
-        home_z.onclick = home_printer(['z']);
-        preheat_pla.onclick = preheat(185, 50);
-        cool_down.onclick = preheat(0, 0);
-
         function render_state(_state) {
             bed_temp.textContent = `Bed: ${_state.temperature.bed.actual} => ${_state.temperature.bed.target}`;
             ext_temp.textContent = `Ext: ${_state.temperature.tool0.actual} => ${_state.temperature.tool0.target}`;
             state.textContent = `State: ${state_to_str(_state.state)}`;
-            console.log(_state);
         }
+
+        function move_head(axis, value) {
+            console.log(axis, value);
+                var body = {'command': 'jog'};
+                body[axis.toLowerCase()] = value;
+                return new Promise((resolve, reject) => {
+                    fetch(`${url}/api/printer/printhead`, {'method': 'POST', 'headers': _headers, body: JSON.stringify(body)})
+                    .then(response => response.json())
+                    .then(json => resolve(json));
+                });
+        }
+        home_xy.onclick = home_printer(['x', 'y']);
+        home_z.onclick = home_printer(['z']);
+        preheat_pla.onclick = preheat(185, 50);
+        cool_down.onclick = preheat(0, 0);
 
         setInterval(function() {
             get_state().then(_state => render_state(_state));
@@ -82,6 +95,18 @@
 
         get_state().then(_state => {
             render_state(_state);
+        });
+
+        mov_length.forEach(item => {
+            item.onclick = _ => movement_length = parseInt(item.attributes['data-value'].value);
+        });
+
+        mov_dir.forEach(item => {
+            item.onclick = function() {
+                var axis = item.attributes['data-axis'].value;
+                var dir = parseInt(item.attributes['data-dir'].value);
+                move_head(axis, dir * movement_length);
+            }
         });
     };
 </script>
@@ -91,12 +116,85 @@ label, button {
     width: 100%;
     margin-top: 10px;
 }
-button {
-    padding: 5px;
-}
 .category-label {
     font-weight: bold;
 }
+
+#control-container {
+    display: grid;
+    grid-column-gap: 5px;
+    grid-row-gap: 5px;
+    grid-template-columns: repeat(3, 17%) 5px 17% 5px 17%;
+    grid-template-rows: repeat(4, 20%);
+    width: 80%;
+    margin: 0px auto;
+}
+
+button.movement-dir, button.movement-length {
+    padding: 10px;
+}
+
+.movement-length {
+    grid-column-start: 7;
+}
+.movement-length:nth-child(1) {
+    grid-row-start: 1;
+}
+.movement-length:nth-child(2) {
+    grid-row-start: 2;
+}
+.movement-length:nth-child(3) {
+    grid-row-start: 3;
+}
+.movement-length:nth-child(4) {
+    grid-row-start: 4;
+}
+
+.movement-dir[data-axis='X'] {
+    grid-row-start: 2;
+    grid-column-start: 1;
+}
+
+.movement-dir[data-axis='X'][data-dir='1'] {
+    grid-column-start: 3;
+}
+
+.movement-dir[data-axis='Y'] {
+    grid-column-start: 2;
+    grid-row-start: 1;
+}
+.movement-dir[data-axis='Y'][data-dir='-1'] {
+    grid-row-start: 3;
+}
+.movement-dir[data-axis='Z'] {
+    grid-column-start: 5;
+    grid-row-start: 1;
+}
+
+.movement-dir[data-axis='Z'][data-dir='-1'] {
+    grid-row-start: 3;
+}
+
+#home-xy {
+    grid-row-start: 2;
+    grid-column-start: 2;
+}
+
+#home-z {
+    grid-row-start: 2;
+    grid-column-start: 5;
+}
+
+#temperature-container {
+    margin: 0px auto;
+    text-align: center;
+}
+#temperature-container button {
+    width: 45%;
+    display: inline-block;
+    padding: 5px;
+}
+
 @media only screen and (min-width: 900px) {
     html {
         width: 700px;
@@ -113,12 +211,28 @@ button {
 
     <label id='state'></label>
 
-    <label class='category-label'>Home:</label>
-    <button id='home-xy'>X/Y</button>
-    <button id='home-z'>Z</button>
+    <div id='control-container'>
+        <button class='movement-dir' data-axis='X' data-dir='1'>&DoubleRightArrow;</button>
+        <button class='movement-dir' data-axis='X' data-dir='-1'>&DoubleLeftArrow;</button>
+        <button class='movement-dir' data-axis='Y' data-dir='1'>&DoubleUpArrow;</button>
+        <button class='movement-dir' data-axis='Y' data-dir='-1'>&DoubleDownArrow;</button>
+        <button id='home-xy'>H</button>
+        <button class='movement-dir' data-axis='Z' data-dir='1'>&DoubleUpArrow;</button>
+        <button id='home-z'>H</button>
+        <button class='movement-dir' data-axis='Z' data-dir='-1'>&DoubleDownArrow;</button>
+
+        <button class='movement-length' data-value='0.1'>0.1</button>
+        <button class='movement-length' data-value='1'>1</button>
+        <button class='movement-length' data-value='10'>10</button>
+        <button class='movement-length' data-value='100'>100</button>
+    </div>
+
+
 
     <label class='category-label'>Temperature:</label>
-    <button id='preheat-pla'>Pre-heat PLA</button>
-    <button id='cool-down'>Cool down</button>
+    <div id='temperature-container'>
+        <button id='preheat-pla'>Pre-heat PLA</button>
+        <button id='cool-down'>Cool down</button>
+    </div>
 </body>
 </html>
