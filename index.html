@@ -4,6 +4,8 @@
 <script language='javascript'>
 
     window.onload = function(e) {
+        var job_fname = document.getElementById('filename');
+        var job_progress = document.getElementById('progress');
         var bed_temp = document.getElementById('bed-temp');
         var ext_temp = document.getElementById('ext-temp');
         var state = document.getElementById('state');
@@ -25,6 +27,13 @@
         function get_state() {
             return new Promise((resolve, reject) => {
                 fetch(`${url}/api/printer`, {'headers': _headers})
+                .then(response => response.json())
+                .then(json => resolve(json));
+            });
+        }
+        function get_progress() {
+            return new Promise((resolve, reject) => {
+                fetch(`${url}/api/job`, {'headers': _headers})
                 .then(response => response.json())
                 .then(json => resolve(json));
             });
@@ -74,6 +83,17 @@
             state.textContent = `State: ${state_to_str(_state.state)}`;
         }
 
+        function render_progress(_state) {
+            if (_state.state === 'Operational' ||_state.progress.completion === 100 || _state.progress.completion === null) {
+                job_fname.textContent = '';
+                progress.textContent = '';
+                return;
+            }
+            _progress = Math.round(_state.progress.completion);
+            job_fname.textContent = `File: ${_state.job.file.display}`;
+            progress.textContent = `Progress: ${_progress}%`;
+        }
+
         function move_head(axis, value) {
             console.log(axis, value);
                 var body = {'command': 'jog'};
@@ -91,10 +111,12 @@
 
         setInterval(function() {
             get_state().then(_state => render_state(_state));
+            get_progress().then(_state => render_progress(_state));
         }, 5000);
 
         get_state().then(_state => {
             render_state(_state);
+            get_progress().then(_state => render_progress(_state));
         });
 
         mov_length.forEach(item => {
@@ -119,6 +141,11 @@ label, button {
 .category-label {
     font-weight: bold;
 }
+
+#temp-status{width:50%;float:left}
+#job-status{width:50%;float:left}
+#status{display:block;margin-bottom:10px;}
+#status:after{clear:both;content:""; display:table;}
 
 #control-container {
     display: grid;
@@ -205,11 +232,20 @@ button.movement-dir, button.movement-length {
 </style>
 </head>
 <body>
-    <label class='category-label'>Temperatures:</label>
-    <label id='bed-temp'></label>
-    <label id='ext-temp'></label>
-
+    <div id='status'>
+        <div id='temp-status'>
+            <label class='category-label'>Temperatures:</label>
+            <label id='bed-temp'></label>
+            <label id='ext-temp'></label>
+        </div>
+        <div id='job-status'>
+            <label class='category-label'>Job:</label>
+            <label id='filename'></label>
+            <label id='progress'></label>
+        </div>
+    </div>
     <label id='state'></label>
+
 
     <div id='control-container'>
         <button class='movement-dir' data-axis='X' data-dir='1'>&DoubleRightArrow;</button>
